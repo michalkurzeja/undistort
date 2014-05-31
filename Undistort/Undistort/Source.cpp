@@ -9,66 +9,98 @@ using namespace std;
 /// Global variables
 char* source_window = "Source image";
 char* warp_window = "Warp";
-char* warp_rotate_window = "Warp + Rotate";
+int corners_cnt = 0;
+
+bool sortX(Point2f p1, Point2f p2) { return (p1.x < p2.x); }
+bool sortY(Point2f p1, Point2f p2) { return (p1.y < p2.y); }
+
+void sortCorners(Point2f * corners)
+{
+	vector<Point2f> cornersVector(corners, corners+4);
+	Point2f tmp;
+
+	sort(cornersVector.begin(), cornersVector.end(), sortX);
+	
+	if (cornersVector[0].y > cornersVector[1].y) {
+		tmp = cornersVector[0];
+		cornersVector[0] = cornersVector[1];
+		cornersVector[1] = tmp;
+	}
+
+	if (cornersVector[2].y > cornersVector[3].y) {
+		tmp = cornersVector[2];
+		cornersVector[2] = cornersVector[3];
+		cornersVector[3] = tmp;
+	}
+
+	for (int i = 0; i < 4; i++) {
+		corners[i] = cornersVector[i];
+	}
+}
+
+void CallBackFunc(int event, int x, int y, int flags, void* userdata)
+{
+	if (event != EVENT_LBUTTONDOWN) {
+		return;
+	}
+
+	if (corners_cnt >= 4) {
+		return;
+	}
+
+	Point2f * corners = (Point2f *) userdata;
+	
+	corners[corners_cnt++] = Point2f(x, y);
+
+	cout << "Corner #" << corners_cnt << "(" << x << "," << y << ") added" << endl;
+}
 
 /** @function main */
 int main(int argc, char** argv)
 {
 	string filename;
 
-	Point2f srcTri[3];
-	Point2f dstTri[3];
+	Point2f corners[4];
 
-	Mat rot_mat(2, 3, CV_32FC1);
 	Mat warp_mat(2, 3, CV_32FC1);
-	Mat src, warp_dst, warp_rotate_dst;
-
-	cout << "Podaj nazwe pliku\n";
-	cin >> filename;
+	Mat input;
 
 	/// Load the image
-	src = imread(filename, 1);
-
-	/// Set the dst image the same type and size as src
-	warp_dst = Mat::zeros(src.rows, src.cols, src.type());
-
-	/// Set your 3 points to calculate the  Affine Transform
-	srcTri[0] = Point2f(0, 0);
-	srcTri[1] = Point2f(src.cols - 1, 0);
-	srcTri[2] = Point2f(0, src.rows - 1);
-
-	dstTri[0] = Point2f(src.cols*0.0, src.rows*0.33);
-	dstTri[1] = Point2f(src.cols*0.85, src.rows*0.25);
-	dstTri[2] = Point2f(src.cols*0.15, src.rows*0.7);
-
-	/// Get the Affine Transform
-	warp_mat = getAffineTransform(srcTri, dstTri);
-
-	/// Apply the Affine Transform just found to the src image
-	warpAffine(src, warp_dst, warp_mat, warp_dst.size());
-
-	/** Rotating the image after Warp */
-
-	/// Compute a rotation matrix with respect to the center of the image
-	Point center = Point(warp_dst.cols / 2, warp_dst.rows / 2);
-	double angle = -50.0;
-	double scale = 0.6;
-
-	/// Get the rotation matrix with the specifications above
-	rot_mat = getRotationMatrix2D(center, angle, scale);
-
-	/// Rotate the warped image
-	warpAffine(warp_dst, warp_rotate_dst, rot_mat, warp_dst.size());
+	input = imread(argv[1], 1);
 
 	/// Show what you got
 	namedWindow(source_window, CV_WINDOW_AUTOSIZE);
-	imshow(source_window, src);
+
+	setMouseCallback(source_window, CallBackFunc, corners);
+
+	imshow(source_window, input);
+
+	while (1) {
+		if (waitKey(100) == 27) {
+			if (corners_cnt >= 4) {
+				sortCorners(corners);
+				break;
+			}
+		}
+	}
+
+	/// Create an empty image
+	Mat output;
+	output = Mat::zeros(842, 595, input.type());
+
+	Mat mmat(3, 3, CV_32FC1);
+	Point2f c1[4] = {
+		corners[0], corners[1], corners[2], corners[3]
+	};
+	Point2f c2[4] = {
+		Point2f(0, 0), Point2f(0, output.cols - 1), Point2f(output.rows - 1, 0), Point2f(output.rows - 1, output.cols - 1)
+	};
+	mmat = getPerspectiveTransform(c1, c2);
+
+	warpPerspective(input, output, mmat, output.size());
 
 	namedWindow(warp_window, CV_WINDOW_AUTOSIZE);
-	imshow(warp_window, warp_dst);
-
-	namedWindow(warp_rotate_window, CV_WINDOW_AUTOSIZE);
-	imshow(warp_rotate_window, warp_rotate_dst);
+	imshow(warp_window, output);
 
 	/// Wait until user exits the program
 	waitKey(0);
