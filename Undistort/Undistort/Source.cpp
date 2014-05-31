@@ -14,6 +14,8 @@ char* warp_rotate_window = "Warp + Rotate";
 /** @function main */
 int main(int argc, char** argv)
 {
+	string filename;
+
 	Point2f srcTri[3];
 	Point2f dstTri[3];
 
@@ -21,8 +23,11 @@ int main(int argc, char** argv)
 	Mat warp_mat(2, 3, CV_32FC1);
 	Mat src, warp_dst, warp_rotate_dst;
 
+	cout << "Podaj nazwe pliku\n";
+	cin >> filename;
+
 	/// Load the image
-	src = imread(argv[1], 1);
+	src = imread(filename, 1);
 
 	/// Set the dst image the same type and size as src
 	warp_dst = Mat::zeros(src.rows, src.cols, src.type());
