@@ -8,12 +8,15 @@ using namespace cv;
 using namespace std;
 
 /// Global variables
+Mat frame, frameCopy, image;
 char* source_window = "Source video";
 char* warp_window = "Warped video";
 int corners_cnt = 0;
+double zoom = 1;
+Scalar pointColor(0,128,255);
+Scalar lineColor(0, 128, 255);
 
 bool sortX(Point2f p1, Point2f p2) { return (p1.x < p2.x); }
-bool sortY(Point2f p1, Point2f p2) { return (p1.y < p2.y); }
 
 void sortCorners(Point2f * corners)
 {
@@ -42,6 +45,40 @@ void sortCorners(Point2f * corners)
 	cout << "sort 4 ";
 }
 
+int outputWidth(Point2f * corners)
+{
+	int leftMost, rightMost;
+	leftMost = rightMost = corners[0].x;
+
+	for (int i = 1; i < 4; i++) {
+		if (corners[i].x < leftMost) {
+			leftMost = corners[i].x;
+		}
+		if (corners[i].x > rightMost) {
+			rightMost = corners[i].x;
+		}
+	}
+
+	return zoom*(rightMost - leftMost);
+}
+
+int outputHeight(Point2f * corners)
+{
+	int topMost, bottomMost;
+	topMost = bottomMost = corners[0].y;
+
+	for (int i = 1; i < 4; i++) {
+		if (corners[i].y < topMost) {
+			topMost = corners[i].y;
+		}
+		if (corners[i].y > bottomMost) {
+			bottomMost = corners[i].y;
+		}
+	}
+
+	return zoom*(bottomMost - topMost);
+}
+
 void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 {
 	if (event != EVENT_LBUTTONDOWN) {
@@ -52,8 +89,8 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 		return;
 	}
 
-	Point2f * corners = (Point2f *)userdata;
-
+	Point2f * corners = (Point2f *) userdata;
+	
 	corners[corners_cnt++] = Point2f(x, y);
 
 	cout << "Corner #" << corners_cnt << "(" << x << "," << y << ") added" << endl;
@@ -65,7 +102,6 @@ int main(int argc, char** argv)
 	Point2f corners[4];
 
 	CvCapture* capture = 0;
-	Mat frame, frameCopy, image;
 
 	///capture from default cam
 	capture = cvCaptureFromCAM(CV_CAP_ANY);
@@ -74,12 +110,11 @@ int main(int argc, char** argv)
 		cout << "No camera detected" << endl;
 	}
 
-	Mat warp_mat(2, 3, CV_32FC1);
-	Mat input;
 	bool sort = false;
 
 	/// Show what you got
 	namedWindow(source_window, CV_WINDOW_AUTOSIZE);
+	setMouseCallback(source_window, CallBackFunc, corners);
 
 	if (capture)
 	{
@@ -98,10 +133,12 @@ int main(int argc, char** argv)
 			else
 				flip(frame, frameCopy, 0);
 
-			imshow(source_window, frame);
+			Mat input = frame.clone();
 
-			setMouseCallback(source_window, CallBackFunc, corners);
-			
+			for (int i = 0; i < corners_cnt; i++) {
+				circle(input, corners[i], 3, pointColor, -1);
+			}
+
 			if (corners_cnt >= 4 && sort == false)
 			{
 				sortCorners(corners);
@@ -112,9 +149,16 @@ int main(int argc, char** argv)
 			if (corners_cnt >= 4)
 			{
 				/// Create an empty image
-				Mat output;
-				output = frame;
-				input = frame;
+				int width = outputWidth(corners);
+				int height = outputHeight(corners);
+
+				Mat output = Mat(frame.rows, frame.cols, frame.type());
+
+				/// Drawing box around selected area
+				line(input, corners[0], corners[1], lineColor);
+				line(input, corners[1], corners[3], lineColor);
+				line(input, corners[3], corners[2], lineColor);
+				line(input, corners[2], corners[0], lineColor);
 
 				Mat mmat(3, 3, CV_32FC1);
 				Point2f c1[4] = {
@@ -123,21 +167,28 @@ int main(int argc, char** argv)
 				Point2f c2[4] = {
 					Point2f(0, 0), Point2f(0, output.cols - 1), Point2f(output.rows - 1, 0), Point2f(output.rows - 1, output.cols - 1)
 				};
-				mmat = getPerspectiveTransform(c1, c2);
 
-				warpPerspective(input, output, mmat, output.size());
+				warpPerspective(frame, output, getPerspectiveTransform(c1, c2), frame.size());
 
-				namedWindow(warp_window, CV_WINDOW_AUTOSIZE);
+				namedWindow(warp_window, CV_WINDOW_NORMAL);
 				imshow(warp_window, output);
 			}
+
+			imshow(source_window, input);
 			
-			if (waitKey(10) >= 0)
-				break;
+			switch (waitKey(10)) {
+				case 32:
+					corners_cnt = 0;
+					sort = false;
+					break;
+				case 27:
+					return 0;
+					break;
+				default:
+					break;
+			}
 		}
 	}
-
-	/// Wait until user exits the program
-	waitKey(0);
 
 	return 0;
 }
