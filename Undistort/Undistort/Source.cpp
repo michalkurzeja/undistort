@@ -149,10 +149,12 @@ int main(int argc, char** argv)
 			if (corners_cnt >= 4)
 			{
 				/// Create an empty image
-				int width = outputWidth(corners);
 				int height = outputHeight(corners);
+				int width = (int)(0.7 * height);
+				int midX = frame.cols / 2;
+				int midY = frame.rows / 2;
 
-				Mat output = Mat(frame.rows, frame.cols, frame.type());
+				Mat output = Mat(frame.cols, frame.rows, frame.type());
 
 				/// Drawing box around selected area
 				line(input, corners[0], corners[1], lineColor);
@@ -165,12 +167,12 @@ int main(int argc, char** argv)
 					corners[0], corners[1], corners[2], corners[3]
 				};
 				Point2f c2[4] = {
-					Point2f(0, 0), Point2f(0, output.cols - 1), Point2f(output.rows - 1, 0), Point2f(output.rows - 1, output.cols - 1)
+					Point2f(midX - width / 2, midY - height / 2), Point2f(midX - width / 2, midY + height / 2), Point2f(midX + width / 2, midY - height / 2), Point2f(midX + width / 2, midY + height / 2)
 				};
 
 				warpPerspective(frame, output, getPerspectiveTransform(c1, c2), frame.size());
 
-				namedWindow(warp_window, CV_WINDOW_NORMAL);
+				namedWindow(warp_window, CV_WINDOW_AUTOSIZE);
 				imshow(warp_window, output);
 			}
 
